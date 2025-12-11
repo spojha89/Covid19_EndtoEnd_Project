@@ -1,0 +1,163 @@
+---
+title: "R Notebook for Final Assignment"
+output: html_notebook
+---
+
+Answering Question1-
+What are the major research themes (topics) when grouped by keyword presence (e.g., “vaccine”, “variant”, “long covid”)?
+
+install packages
+```{r}
+install.packages(c("ggplot2", "leaflet", "readxl", "dplyr","stringr"))
+```
+
+Calling packages
+```{r}
+library(leaflet)
+library(dplyr)
+library(stringr)
+library(readr)
+library(ggplot2)
+```
+Set working directory
+```{r}
+# Set working directory (optional, replace path accordingly)
+setwd("C:/Users/Reshma/OneDrive/Desktop/Subhra Trainings/Healthcare_ANBI/Final Project/Dataset/")
+```
+
+```{r}
+data <- read_csv("C:/Users/Reshma/OneDrive/Desktop/Subhra Trainings/Healthcare_ANBI/Final Project/Dataset/covid_abstracts.csv")
+print((data))
+```
+
+Summary of dataset
+```{r}
+summary(data)
+```
+Find length of title and abstract fields
+```{r}
+data$title_length <- nchar(as.character(data$title))
+data$abstract_length <- nchar(as.character(data$abstract))
+print(data)
+
+```
+
+```{r}
+# 2. Combine title + abstract into a single text column
+data$text <- paste(data$title, data$abstract)
+print(data)
+```
+
+
+```{r}
+# 3. Clean text (lowercase)
+data$text_clean <- tolower(data$text)
+```
+
+
+```{r}
+# 4. Define keyword groups for each theme
+themes <- list(
+  vaccine = c("vaccine", "vaccination", "mrna", "pfizer", "moderna", "immunization"),
+  variant = c("variant", "delta", "omicron", "mutation", "lineage", "strain"),
+  long_covid = c("long covid", "post-acute", "pasc", "post covid"),
+  transmission = c("transmission", "spread", "infectivity"),
+  diagnostics = c("diagnostic", "pcr", "rapid test", "antigen"),
+  treatment = c("treatment", "therapy", "antiviral", "remdesivir", "icu"),
+  mental_health = c("stress", "mental health", "anxiety", "depression")
+)
+```
+
+
+```{r}
+# 5. Function to tag themes by keyword match
+detect_theme <- function(text, keyword_list) {
+  sapply(keyword_list, function(keywords) {
+    any(str_detect(text, paste0("\\b", keywords, "\\b")))
+  })
+}
+```
+
+
+```{r}
+# 6. Apply the theme detection
+theme_matrix <- t(apply(data["text_clean"], 1, detect_theme, keyword_list = themes))
+theme_matrix <- as.data.frame(theme_matrix)
+print(theme_matrix)
+```
+
+
+```{r}
+# 7. Add theme flags back to dataframe
+data_with_themes <- bind_cols(data, theme_matrix)
+```
+
+
+```{r}
+# 8. Calculate number of articles in each theme
+theme_summary <- colSums(theme_matrix)
+print(theme_summary)
+```
+
+
+```{r}
+# Convert theme_summary (a named vector) into a dataframe
+theme_df <- data.frame(
+  theme = names(theme_summary),
+  count = as.numeric(theme_summary)
+)
+```
+
+
+```{r}
+# Plot
+ggplot(theme_df, aes(x = reorder(theme, count), y = count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Major Research Themes in COVID Abstracts",
+    x = "Research Theme",
+    y = "Number of Articles"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+
+Question2- How do chronic disease prevalence rates vary by state?
+```{r}
+df <- read_csv("C:/Users/Reshma/OneDrive/Desktop/Subhra Trainings/Healthcare_ANBI/Final Project/Dataset/Chronic_Disease_Indicators_20251116.csv")
+print((df))
+```
+
+
+Filter for rows that contain prevalence values
+```{r}
+#There are many DataValue as null. Skipping them. 
+df_clean <- df %>%
+  filter(!is.na(DataValue))
+summary(df_clean)
+```
+Compute average chronic disease prevalence per state
+```{r}
+state_prevalence <- df_clean %>%
+  group_by(LocationAbbr, LocationDesc) %>%
+  summarise(AveragePrevalence = mean(DataValue, na.rm = TRUE)) %>%
+  arrange(desc(AveragePrevalence))
+
+print(state_prevalence)
+```
+
+Plot variation in prevalence by state
+```{r}
+ggplot(state_prevalence, aes(
+        x = reorder(LocationAbbr, AveragePrevalence),
+        y = AveragePrevalence,
+        fill = AveragePrevalence
+      )) +
+  geom_col() +
+  scale_fill_gradient(low = "skyblue", high = "darkblue") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+  labs(title = "Chronic Disease Prevalence by State",
+       x = "State", y = "Avg Prevalence (%)")
+```
+
